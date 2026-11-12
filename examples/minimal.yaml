@@ -1,0 +1,88 @@
+# Minimal vcdd configuration.
+#
+# Keys omitted here fall back to the package defaults; run `vcdd config` for the
+# fully annotated template. Every value below is a real schema field - this file
+# is validated against vcdd.config.schema in the test suite.
+#
+# Note on stage 2 -> stage 3 selection: the structural gate and the affinity
+# ranking reported in the accompanying paper are NOT part of the pipeline. They
+# are applied afterwards by `scripts/select_stage2_shortlist.py`, which reads a
+# finished stage-2 run and writes the stage-3 shortlist. See docs/SELECTION.md.
+
+name: minimal
+out_dir: ./vcdd_run
+seed: 42
+
+library:
+  path: ./library.sdf
+  dedup_by: inchikey
+  standardize: true
+  filters:
+    enabled: true
+    mw_min: 150.0
+    mw_max: 600.0
+    logp_max: 6.0
+
+receptor:
+  path: ./receptor.pdb
+  reference_ligand: null          # e.g. MBW; also used for the box and redock gate
+  box:
+    center: null                  # null = derive from the reference ligand
+    size: null
+    padding: 4.0
+  redock_validation: true
+  redock_rmsd_threshold: 2.0
+
+stage1:
+  engine: vina_gpu
+  variant: quickvina2_gpu
+  gpu_batch_size: 1000
+  thread: 5000                    # quickvina2_gpu; keep below 10000
+
+stage2:
+  backend: local                  # library_screen | structure_and_binding | local
+  top_n: 500
+  num_samples: 1
+  keep_structures_top_k: 500      # pose QC is the only site check on the local route
+  local_boltz:
+    binary: boltz
+    devices: [0]
+    max_concurrency: 1            # keep <= len(devices)
+    use_msa_server: false         # true sends the target sequence to a public API
+    affinity: true                # ask for the affinity head as well as confidence
+    affinity_samples: 5
+    affinity_sampling_steps: 200
+    affinity_mw_correction: false
+
+cell:
+  backends: [lincs_readacross]
+  cell_line: MCF7
+  dose_um: 10.0
+  time_h: 24.0
+  top_n: 200
+  target_gene: PRKDC              # enables target_consistency
+  objective:
+    genes_up: [CDKN1A, GADD45A]
+    genes_down: []
+    weights:
+      gene_score: 2.0
+      pathway_score: 1.0
+      target_consistency: 1.0
+      specificity: 1.0
+
+stage4:
+  top_parents: 10
+  generators: [constrained_ga, rgroup]
+  redock_mode: stage1
+  score_weights:
+    docking: 1.0
+    cell: 2.0
+    qed: 0.5
+    sa: 0.5
+  guardrails:
+    similarity_floor_ga: 0.5
+    similarity_floor_enum: 0.6
+    sa_score_max: 4.5
+    mw_max: 650.0
+    logp_max: 6.0
+    pains: true
