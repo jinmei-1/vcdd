@@ -1,0 +1,7 @@
+# Pip-only subset of the vcdd environment.
+#
+# Nothing here provides the GPU docking engine, which must be supplied separately
+# (see environment.yml and docs/GPU_DOCKING.md). With only this file installed,
+# `vcdd doctor` will report the docking engine as unavailable and stages 1 and 4
+# will raise rather than silently substitute a different method.
+-e .[chem,prep,optim,report,dev]

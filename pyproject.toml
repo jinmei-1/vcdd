@@ -1,0 +1,129 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vcdd"
+dynamic = ["version"]
+description = "Virtual-cell-guided drug design: a four-stage GPU docking + co-folding + transcriptomic scoring + analog-optimization pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "LICENSE-NOTICES.md"]
+authors = [{ name = "vcdd contributors" }]
+keywords = [
+  "virtual screening",
+  "molecular docking",
+  "virtual cell",
+  "transcriptomic perturbation",
+  "drug design",
+  "cheminformatics",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Topic :: Scientific/Engineering :: Chemistry",
+]
+
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "pyarrow>=12",
+  "scipy>=1.10",
+  "scikit-learn>=1.2",
+  "pyyaml>=6.0",
+  "pydantic>=2.5",
+  "typer>=0.9",
+  "rich>=13.0",
+  "requests>=2.28",
+  "tqdm>=4.64",
+  "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+# RDKit is a hard requirement in practice but is usually supplied by conda;
+# keep it pip-installable too so a pure-pip install is possible.
+chem = ["rdkit>=2023.03"]
+# Ligand and receptor PDBQT preparation, plus structure I/O.
+prep = ["meeko>=0.5", "gemmi>=0.6"]
+# Stage 2: the official Boltz API client.
+boltz = ["boltz-api>=0.46"]
+# Stage 4 analog generation.
+optim = ["crem>=0.2.9", "mmpdb>=2.1"]
+# Plotting for the HTML report.
+report = ["matplotlib>=3.7", "seaborn>=0.12"]
+# Virtual-cell backends that need deep-learning weights.
+cell-models = ["torch>=2.0", "anndata>=0.9", "scanpy>=1.9"]
+dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.4"]
+docs = ["sphinx>=7.0", "furo>=2024.1"]
+# Everything except the GPU docking engine, which must come from conda.
+all = [
+  "vcdd[chem,prep,boltz,optim,report,cell-models]",
+]
+
+[project.scripts]
+vcdd = "vcdd.cli:main"
+
+# [project.urls] is intentionally omitted: the repository location is not fixed
+# here, so there is no placeholder URL to go stale. Add it at publish time if you
+# want the metadata to carry it.
+
+[tool.hatch.version]
+path = "vcdd/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vcdd"]
+
+# The configuration template and the virtual-cell reference resources are data,
+# not code. They live inside the `vcdd` package directory, so the `packages`
+# rule above already ships them; listing them again under force-include makes
+# hatchling try to add the same archive path twice and aborts the wheel build.
+# `tests/test_packaging.py` asserts both are present in the built artifact.
+
+[tool.hatch.build.targets.sdist]
+# The sdist is the canonical source distribution, so it carries everything the
+# release tree carries -- not just the importable package. `scripts/build_release.py`
+# assembles the same set, and `tests/test_packaging.py` asserts both agree.
+include = [
+  "/vcdd",
+  "/tests",
+  "/scripts",
+  "/docs",
+  "/examples",
+  "/README.md",
+  "/DESIGN.md",
+  "/MIGRATION-0.2.0.md",
+  "/CHANGELOG.md",
+  "/CONTRIBUTING.md",
+  "/CITATION.cff",
+  "/LICENSE",
+  "/LICENSE-NOTICES.md",
+  "/run_all.py",
+  "/pyproject.toml",
+  "/environment.yml",
+  "/requirements.txt",
+  "/.gitignore",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: end-to-end tests that invoke a real docking engine",
+  "network: tests that require outbound network access",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

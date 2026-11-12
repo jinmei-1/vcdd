@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use vcdd in your research, please cite the software as below."
+title: "vcdd: a virtual-cell-guided drug design workflow"
+abstract: >-
+  vcdd is a configuration-driven workflow framework that links GPU-accelerated
+  docking, Boltz-2 complex-confidence and affinity prediction, virtual-cell
+  transcriptomic scoring, and constrained parent-to-analog generation with joint
+  structural and cellular rescoring on a single executable and restartable path.
+type: software
+license: MIT
+version: 0.3.0
+date-released: "2026-09-23"
+keywords:
+  - virtual screening
+  - molecular docking
+  - virtual cell
+  - transcriptomic perturbation
+  - drug design
+  - DNA-PKcs
+authors:
+  - name: "vcdd contributors"

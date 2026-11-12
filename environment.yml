@@ -1,0 +1,41 @@
+# Conda environment for vcdd.
+#
+# The GPU docking engine and RDKit are conda-level dependencies: Vina-GPU ships as
+# a compiled binary with its own OpenCL kernels, and RDKit's conda build is the
+# one that matches the rest of the chemistry stack.
+#
+#   conda env create -f environment.yml
+#   conda activate vcdd
+#   pip install -e ".[dev]"
+
+name: vcdd
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.10,<3.13
+  - numpy>=1.24
+  - pandas>=2.0
+  - pyarrow>=12
+  - scipy>=1.10
+  - scikit-learn>=1.2
+  - pyyaml>=6.0
+  - pydantic>=2.5
+  - typer>=0.9
+  - rich>=13.0
+  - requests>=2.28
+  - tqdm>=4.64
+  - jinja2>=3.1
+  - rdkit>=2023.03
+  - openbabel>=3.1        # ligand/receptor format conversion
+  - gemmi>=0.6            # structure I/O
+  - meeko>=0.5            # PDBQT preparation
+  - matplotlib>=3.7
+  - seaborn>=0.12
+  - pytest>=7.4
+  - pytest-cov>=4.1
+  - pip
+  - pip:
+      - boltz-api>=0.46
+      - crem>=0.2.9
+      - mmpdb>=2.1
