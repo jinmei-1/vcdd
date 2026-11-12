@@ -1,0 +1,72 @@
+# Smoke-test configuration: the whole four-stage pipeline on the 200-molecule
+# fixture library and the streptavidin fixture receptor. Everything is sized so
+# the run finishes in minutes on a laptop, which also means none of these
+# numbers are appropriate for real work.
+name: vcdd-smoke
+out_dir: ./smoke_run
+seed: 42
+n_workers: 8
+log_level: INFO
+
+library:
+  path: tests/fixtures/library.sdf
+  shard_size: 50
+  standardize: true
+  dedup_by: inchikey
+  filters:
+    enabled: true
+    pains: true
+    reos: true
+
+receptor:
+  path: tests/fixtures/receptor.pdb
+  reference_ligand_path: tests/fixtures/reference_ligand.sdf
+  chain: A
+  redock_validation: true
+  redock_rmsd_threshold: 2.0
+  redock_fail_hard: false
+  box:
+    padding: 5.0
+
+stage1:
+  engine: vina_gpu
+  variant: quickvina2_gpu   # fastest of the three; the fixture box is 16 A so <70 A holds
+  thread: 5000              # QuickVina2-GPU-2.1 default
+  search_depth: 5           # smoke-sized, not a real setting
+  gpu_batch_size: 200
+  pilot_size: 20
+
+stage2:
+  backend: library_screen
+  top_n: 12
+  chunk_size: 12
+  fusion: boltz_only
+  molecule_filter_level: disabled
+  keep_structures_top_k: 12
+  poll_interval_s: 5
+  max_spend_usd: 1.0        # a test-mode key is never billed, but the gate must still hold
+
+cell:
+  backends: [mock, lincs_readacross, target_knockdown]
+  cell_line: MCF7
+  dose_um: 10.0
+  time_h: 24.0
+  top_n: 12
+  gene_space: landmark
+  target_gene: EGFR
+  protein_activity: true
+  activity_method: ulm
+  objective:
+    genes_up: [CDKN1A, TP53, MYC]
+    genes_down: [CCND1]
+    pathways_up: [p53]
+    pathways_down: [EGFR, MAPK]
+
+stage4:
+  top_parents: 4
+  generators: [rgroup, constrained_ga]
+  analogs_per_parent: 8
+  ga_population: 10
+  ga_generations: 2
+  redock_mode: stage1
+  sar_min_parents: 2

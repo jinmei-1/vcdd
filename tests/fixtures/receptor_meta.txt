@@ -1,0 +1,6 @@
+pdb_id=1STP
+ligand_resname=BTN
+chain=A
+receptor_atoms=901
+ligand_atoms=16
+source=RCSB PDB (CC0)
