@@ -1,0 +1,82 @@
+{
+  "generator": "scripts/build_cell_resources.py",
+  "notice": "Derived from public sources; original licences apply. See LICENSE-NOTICES.md. Each entry carries both the digest of the downloaded source (source_sha256) and the digest of the file shipped here (file_sha256); the two differ because the payload is re-serialised.",
+  "resources": {
+    "collectri": {
+      "built_utc": "2026-08-12T04:09:31+00:00",
+      "file": "collectri.tsv",
+      "file_bytes": 903223,
+      "file_sha256": "79314d0d0e4dd1802206899cc80a18ff751edc234c1dcca65e04c493624eac8d",
+      "n_tf": 1201,
+      "rows": 62411,
+      "source": "https://omnipathdb.org/interactions?datasets=collectri",
+      "source_sha256": "fb6ffedeb22823ef8cb2763c7117e6d03dce8cd211e08907cc61d03d7def9128"
+    },
+    "hallmark": {
+      "built_utc": "2026-08-12T04:08:13+00:00",
+      "file": "hallmark.tsv",
+      "file_bytes": 176808,
+      "file_sha256": "5f70a7dd7ce9cef2177aefcfb2e44f1ffae6dad6eab9856876032adb60d13228",
+      "rows": 7321,
+      "source": "https://maayanlab.cloud/Enrichr/geneSetLibrary?libraryName=MSigDB_Hallmark_2020",
+      "source_sha256": "4275592957a1587652092bb398cf77216fde5b8daa2aedaa0e016f7d10bbdb81"
+    },
+    "l1000_genes": {
+      "built_utc": "2026-08-12T04:08:13+00:00",
+      "file": "l1000_genes.tsv",
+      "file_bytes": 514625,
+      "file_sha256": "ee50cd5add107535870ed073f3ed2a77479a13e5040079a8b5ef9351cc60457f",
+      "n_landmark": 978,
+      "rows": 10174,
+      "source": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE92nnn/GSE92742/suppl/GSE92742_Broad_LINCS_gene_info.txt.gz",
+      "source_sha256": "741216ccc53320119b47ab006de3bcad48963c57087c9e07f50f0d6cd088711a"
+    },
+    "lincs_chem_consensus": {
+      "built_utc": "2026-08-12T04:08:13+00:00",
+      "file": "lincs_chem_consensus.parquet",
+      "file_bytes": 4823093,
+      "file_sha256": "4744894aae2b5a4a47f137d0e4205a42254461eb364eb0f21d7a551ed59d7566",
+      "n_with_smiles": 3143,
+      "rows": 5425,
+      "source": "https://maayanlab.cloud/Enrichr/geneSetLibrary?libraryName=LINCS_L1000_Chem_Pert_Consensus_Sigs",
+      "source_sha256": "bf0cd48341a75ad708f644af827b7aa779b3930563934963f3540209e732a103",
+      "structure_source": "https://repo-hub.broadinstitute.org/repurposing"
+    },
+    "lincs_crispr_ko_consensus": {
+      "built_utc": "2026-08-12T04:08:13+00:00",
+      "file": "lincs_crispr_ko_consensus.parquet",
+      "file_bytes": 4495399,
+      "file_sha256": "5a5aa70f1ba299e141f137d6406fa2690038e3b94a2077897ee6b5b8e6e246bf",
+      "rows": 5212,
+      "source": "https://maayanlab.cloud/Enrichr/geneSetLibrary?libraryName=LINCS_L1000_CRISPR_KO_Consensus_Sigs",
+      "source_sha256": "0334987bf2a95ef5a9ad4a9f578e0a29772c1984ca6650561cd1ba38c2e3f4f6"
+    },
+    "progeny": {
+      "built_utc": "2026-08-12T04:08:13+00:00",
+      "file": "progeny.tsv",
+      "file_bytes": 81412,
+      "file_sha256": "2f39ebac060e0d269ec7c444bd4ea5729e97f25ced7fe815435eadda276c81e4",
+      "pathways": [
+        "Androgen",
+        "EGFR",
+        "Estrogen",
+        "Hypoxia",
+        "JAK-STAT",
+        "MAPK",
+        "NFkB",
+        "PI3K",
+        "TGFb",
+        "TNFa",
+        "Trail",
+        "VEGF",
+        "WNT",
+        "p53"
+      ],
+      "rows": 1400,
+      "source": "https://omnipathdb.org/annotations?resources=PROGENy",
+      "source_sha256": "a1a0f938211def2b846cfde7e7dd56d83240d1bb9bc0ac423682b071761bc821",
+      "top_n": 100
+    }
+  },
+  "schema": 2
+}

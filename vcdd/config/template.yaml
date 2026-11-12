@@ -1,0 +1,262 @@
+# =============================================================================
+# vcdd - Virtual-Cell-guided Drug Design: annotated configuration template
+#
+#   vcdd config -o my_run.yaml
+#   vcdd run -c my_run.yaml
+#
+# Every field below changes a numerical result and is hashed into the resume
+# ledger and recorded in manifest.json. Delete anything you want to leave at
+# its default.
+# =============================================================================
+
+name: my-campaign
+out_dir: ./vcdd_run
+seed: 42
+n_workers: null          # null = all available cores
+shard: 0                 # this machine's shard index, for multi-node fan-out
+nshards: 1               # total number of shards
+log_level: INFO
+
+# -----------------------------------------------------------------------------
+# LIBRARY - ingestion, standardisation, filtering, sharding
+# Accepted formats: .sdf/.sdf.gz, .smi/.ism/.txt, .csv/.tsv, .parquet
+# -----------------------------------------------------------------------------
+library:
+  path: ./library.sdf
+  smiles_column: null    # null = auto-detect (csv/parquet)
+  id_column: null        # null = auto-detect, else a generated VCDD-xxxxx id
+  shard_size: 25000      # molecules per parquet shard
+  chunk_size: 5000       # streaming read chunk; never loads the whole library
+  standardize: true
+  desalt: true           # keep the largest organic fragment
+  neutralize: true
+  canonical_tautomer: true
+  dedup_by: inchikey     # inchikey | inchikey14 | smiles | none
+  max_molecules: null    # cap for pilot runs
+  filters:
+    enabled: true
+    mw_min: 150.0
+    mw_max: 600.0
+    logp_min: -3.0
+    logp_max: 6.0
+    hbd_max: 6
+    hba_max: 12
+    tpsa_max: 180.0
+    rotatable_max: 12
+    heavy_atoms_min: 10
+    heavy_atoms_max: 60
+    allowed_elements: [H, C, N, O, F, P, S, Cl, Br, I, B, Si]
+    pains: true
+    reos: true
+
+# -----------------------------------------------------------------------------
+# RECEPTOR - preparation, docking box, native-ligand redock validation gate
+# -----------------------------------------------------------------------------
+receptor:
+  path: ./receptor.pdb
+  reference_ligand: null        # residue name of the co-crystal ligand, e.g. STI
+  reference_ligand_path: null   # or an explicit ligand file (sdf/mol2/pdb)
+  chain: null
+  keep_waters: false
+  keep_metals: true
+  ph: 7.4
+  box:
+    center: null                # [x, y, z]; null = derive from reference ligand
+    size: null                  # [x, y, z]; null = derive from reference ligand
+    padding: 4.0
+    min_edge: 16.0
+    max_edge: 22.0
+  redock_validation: true       # re-dock the native ligand and measure RMSD
+  redock_rmsd_threshold: 2.0
+  redock_fail_hard: false       # warn-not-fail; a failure is recorded loudly
+
+  ensemble_paths: []            # accepted but UNUSED in 0.2.0 - stage 2 no longer docks
+
+# -----------------------------------------------------------------------------
+# STAGE 1 - fast high-throughput docking over the WHOLE library, on GPU
+#
+# The only production engine is Vina-GPU 2.1 (`scripts/build_vina_gpu.sh` builds
+# it; `vcdd doctor` tells you whether it is usable). It is batch-native: one
+# process docks a whole directory of ligands, which is where the speed comes
+# from, so `gpu_batch_size` matters more than any per-ligand knob.
+#
+# It exposes NO --seed. Stage-1 scores are therefore NOT bit-reproducible; the
+# manifest records `stage1_deterministic: false` rather than implying otherwise.
+# -----------------------------------------------------------------------------
+stage1:
+  engine: vina_gpu              # vina_gpu | mock (mock needs VCDD_ALLOW_MOCK=1)
+  engine_selection: fixed       # 'auto' still resolves to vina_gpu
+  variant: autodock_vina_gpu    # autodock_vina_gpu | quickvina2_gpu | quickvina_w_gpu
+  gpu_batch_size: 1000          # ligands handed to one Vina-GPU process
+  thread: 8000                  # upstream default; 5000 for quickvina2_gpu, keep <10000
+  search_depth: null            # null = let the binary choose from the ligand
+  rilc_bfgs: true               # upstream default (its arg table mislabels it --lbfgs)
+  opencl_binary_path: null      # directory holding Kernel1_Opt.bin / Kernel2_Opt.bin
+  seed: 42                      # used for conformer generation only, NOT for docking
+  n_conformers: 1
+  minimize_conformer: true
+  timeout_s: 300                # per-ligand budget on the serial fallback path
+  batch_timeout_s: 3600         # whole-batch budget for one Vina-GPU process
+  pilot_size: 50                # measure real throughput before the full run
+
+  # Box edge limits are compiled into the binary: <100 A for AutoDock-Vina-GPU-2.1,
+  # <70 A for the QuickVina variants. A larger box needs -DLARGE_BOX at build time.
+
+  # Optional Deep-Docking-style active learning. OFF by default: it buys
+  # wall-clock at a measured cost in recall, which should be an explicit choice.
+  surrogate_al: false
+  al_iterations: 3
+  al_initial_fraction: 0.02
+  al_select_fraction: 0.05
+  al_holdout_fraction: 0.01     # held-out slice used to MEASURE recall
+  al_model: rf
+
+# -----------------------------------------------------------------------------
+# STAGE 2 - Boltz co-folding of the stage-1 shortlist
+#
+# Stage 2 no longer docks. It sends the target sequence plus each shortlisted
+# SMILES to Boltz, which re-predicts the complex and returns a binding
+# confidence. That is orthogonal evidence, not a better docking score, and
+# `dock_score` in the output is the stage-1 score carried forward unchanged.
+#
+# Two routes: the hosted API (library_screen / structure_and_binding) is billed
+# - `vcdd boltz estimate` prices a run for free, and stage 2 aborts above
+# `max_spend_usd` unless you pass --yes-spend. Or run the same boltz-2.1 model
+# locally (`backend: local`): free, no key, no spend gate; see `local_boltz`
+# below.
+# -----------------------------------------------------------------------------
+stage2:
+  # library_screen (BoltzMol-1, API) | structure_and_binding (boltz-2.1, API)
+  # | local (boltz-2.1 on this machine: no API key, no billing, no spend gate;
+  #   needs `pip install boltz` and a CUDA GPU with ~14-20 GB VRAM)
+  backend: library_screen
+  top_n: 500
+  chunk_size: 500               # molecules per API run; also the resume granularity
+  fusion: boltz_only            # boltz_only | rank_fusion | gate
+  gate_threshold: 0.7           # 'gate' keeps binding_confidence >= this, then ranks by stage 1
+  max_spend_usd: 25.0           # ignored when backend: local
+  api_key_env: BOLTZ_API_KEY    # the key is read from the environment, never from this file
+  workspace_id: null
+
+  pocket_from_box: true         # send the docking-box residues as a pocket constraint
+  pocket_margin_a: 0.0
+  use_reference_ligand: true    # pass the native ligand as a reference when one exists
+  molecule_filter_level: disabled  # recommended | extra | aggressive | disabled
+  keep_structures_top_k: 50     # predicted poses downloaded and box-checked
+  poll_interval_s: 20
+  request_timeout_s: 120
+
+  # structure_and_binding only
+  num_samples: 1                # 1-10 samples per molecule; cost scales with this
+  use_receptor_template: false
+
+  # backend: local only - how `boltz predict` runs on this machine. Pocket
+  # residues / reference ligands cannot be sent locally; the ligand-in-box
+  # pose QC is then the only site check, so keep_structures_top_k matters.
+  # (Flags verified against boltz 2.2.x: boltz's --devices is a COUNT, so each
+  # process is pinned to one GPU via CUDA_VISIBLE_DEVICES and always gets
+  # --devices 1; samples use --diffusion_samples; there is no --half flag.)
+  local_boltz:
+    binary: boltz               # executable name or absolute path
+    devices: [0]                # GPU ids to use; one predict process per id
+    max_concurrency: 2          # keep <= len(devices) so no GPU is oversubscribed
+    cache_dir: null             # weight cache (--cache); null = ~/.boltz / $BOLTZ_CACHE
+    # boltz needs per-chain MSA. --use_msa_server queries the server below
+    # (default: public ColabFold API - the target sequence IS sent there).
+    # For private/offline runs: set use_msa_server: false and put precomputed
+    # .a3m files in protein_msa_files (also saves N identical queries per run).
+    use_msa_server: true
+    msa_server_url: null        # e.g. http://localhost:8080 for a self-hosted MMSeqs2
+    msa_server_username: null   # basic auth for the MSA server, if required
+    msa_server_password: null
+    protein_msa_files: {}       # {chain: path/to/file.a3m} - covers every chain
+    half_precision: null        # boltz >= 2 has no --half flag - LEAVE null
+    extra_args: []              # e.g. ["--low_mem", "--seed", "7"]
+    timeout_s: 3600             # per-molecule predict ceiling
+    keep_raw_outputs: true      # false deletes per-molecule dirs (disables pose QC)
+    # Affinity head: answers a different question from the confidence head. The
+    # confidence head says "is this complex plausible"; the affinity head says
+    # "how strongly does this ligand bind". The two are trained on different data,
+    # and Boltz's guidance is that affinity_probability_binary separates binders
+    # from decoys while affinity_pred_value (log10 IC50, IC50 in uM) compares
+    # binders with each other - so the value head is the right signal for ranking
+    # analogs of a binder, not for validating a docking pose. Costs extra sampling.
+    affinity: false               # local backend only; off by default
+    affinity_samples: 5           # --diffusion_samples_affinity
+    affinity_sampling_steps: 200  # --sampling_steps_affinity
+    affinity_mw_correction: false # --affinity_mw_correction
+
+# -----------------------------------------------------------------------------
+# STAGE 3 - virtual-cell perturbation prediction and the multi-objective score
+#
+# Backends (see `vcdd doctor` for what is actually installed):
+#   Tier 1, no weights needed : lincs_readacross, target_knockdown
+#   Tier 2, weights on demand : chemcpa, transigen   <- required for stage 4,
+#                               because only these accept arbitrary novel SMILES
+#   Tier 3, stubs             : prnet, perturbnet, state_tahoe
+#   Testing                   : mock
+# -----------------------------------------------------------------------------
+cell:
+  backends: [lincs_readacross]
+  cell_line: MCF7
+  dose_um: 10.0
+  time_h: 24.0
+  dose_sweep: []                # e.g. [0.1, 1.0, 10.0] for dose-capable backends
+  top_n: 200                    # compounds carried from stage 2 into stage 3
+  gene_space: landmark          # landmark | bing | all
+  target_gene: null             # docking target symbol; enables target_consistency
+  protein_activity: true        # infer TF (CollecTRI) and pathway (PROGENy) activity
+  activity_method: ulm
+  cache_dir: null
+  request_timeout_s: 60
+  offline: false
+
+  objective:
+    genes_up: [CDKN1A]          # <- the genes you want driven HIGH
+    genes_down: []
+    gene_weights: {}
+    pathways_up: []             # PROGENy: Trail, p53, TNFa, JAK-STAT, MAPK, ...
+    pathways_down: []
+    gene_mode: any              # 'all' = every requested gene must move
+    weights:                    # geometric-mean exponents; 0 disables a term
+      gene_score: 2.0
+      pathway_score: 1.0
+      target_consistency: 1.0
+      specificity: 1.0
+    component_floor: 0.0
+    ad_tanimoto_warn: 0.4       # applicability domain; reported, never scored
+
+# -----------------------------------------------------------------------------
+# STAGE 4 - virtual-cell-guided analog design on the stage-3 winners
+# -----------------------------------------------------------------------------
+stage4:
+  top_parents: 20
+  generators: [crem, rgroup, constrained_ga]   # + mmpdb
+  analogs_per_parent: 50
+  ga_generations: 5
+  ga_population: 40
+  ga_mutation_rate: 0.6
+  seed: 42
+  redock_mode: stage1           # stage1 (Vina-GPU) | none. 'stage2' was removed:
+                                # stage 2 is an API call, not a docking protocol.
+  score_weights:
+    docking: 1.0
+    cell: 2.0
+    qed: 0.5
+    sa: 0.5
+  guardrails:
+    similarity_floor_ga: 0.5
+    similarity_floor_enum: 0.6
+    heavy_atom_delta_max: 8
+    max_ring_size: 7
+    max_bridgehead_atoms: 2
+    max_spiro_atoms: 1
+    sa_score_max: 4.5
+    pains: true
+    mw_max: 650.0
+    logp_max: 6.0
+    reject_parent_identity: true
+  sar_min_parents: 2
+  retrosynthesis: false
+  crem_db: null                 # path to a CReM fragment database
+  mmpdb_reference: null         # reference set for matched-molecular-pair mining
